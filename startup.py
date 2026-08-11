@@ -19,7 +19,7 @@ from src.database.bitcoin_core_rpc import BitcoinCoreRPC, BitcoinCoreRPCError
 
 @dataclass(frozen=True, slots=True)
 class StartupConfig:
-    ssh_host: str = "Skyscraper"
+    ssh_host: str = "192.168.0.108"
     ssh_user: str = "greg"
     remote_bin_dir: str = "/mnt/bitcoin/Core/bitcoin-25.0/bin"
     remote_data_dir: str = "/mnt/bitcoin/Bitcoin"

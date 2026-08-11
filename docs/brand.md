@@ -82,31 +82,35 @@ rather than a visual reset.
 
 ## Domain and account plan
 
-Point-in-time checks performed on 2026-07-30:
+Availability checks were performed on 2026-07-30. Registration status was updated on 2026-08-10:
 
 | Target | Result | Recommendation |
 |---|---|---|
-| `bitcoinmathlab.com` | No registration record returned by Verisign RDAP | Purchase first; use as the canonical domain |
+| `bitcoinmathlab.com` | Registered through Cloudflare; expires 2027-08-11 with auto-renewal enabled | Use as the canonical domain |
 | `bitcoinmathlab.org` | No registration record returned by PIR RDAP | Defensive purchase and redirect |
 | `bitcoinmathlab.net` | No registration record returned by Verisign RDAP | Optional defensive purchase |
 | `bitcoinmathlab.ca` | No registration record returned through RDAP | Purchase if Canadian identity will be emphasized |
 | `bitcoinmathlab.dev` | No registration record returned by Google Registry RDAP | Optional developer-documentation redirect |
 | `github.com/bitcoinmathlab` | GitHub API returned not found | Reserve as the organization name |
 
-An absent RDAP or API record is not a guarantee of checkout availability and does not reserve a name. Purchase the
-`.com` before announcing the brand publicly. A sensible initial bundle is `.com`, `.org`, and `.ca`; add `.net` or
-`.dev` only if their renewal cost is justified.
+An absent RDAP or API record is not a guarantee of checkout availability and does not reserve a name. The `.com` is
+the canonical domain. A sensible defensive bundle is `.org` and `.ca`; add `.net` or `.dev` only if their renewal
+cost is justified.
 
-Target the consistent handle `@bitcoinmathlab` on GitHub, X, LinkedIn, YouTube, and any newsletter provider. Social
-platform availability still requires a manual, logged-in check immediately before reservation.
+Target the consistent handle `@bitcoinmathlab` on GitHub, X, YouTube, and any newsletter provider. Bitcoin Math Lab
+will not maintain a LinkedIn presence. Platform availability still requires a manual, logged-in check immediately
+before reservation.
 
 ## Operator checklist
 
-- [ ] Purchase `bitcoinmathlab.com`.
-- [ ] Purchase selected defensive domains.
+- [x] Reserve `bitcoinmathlab@gmail.com` as the bootstrap and recovery account.
+- [x] Purchase `bitcoinmathlab.com` through Cloudflare.
+- [x] Confirm auto-renewal and WHOIS privacy for `bitcoinmathlab.com`.
+- [x] Confirm domain registration; no separate registrant-verification request was received.
+- [ ] Confirm DNSSEC is active for `bitcoinmathlab.com` (enabled 2026-08-10; DS record pending).
+- [ ] Purchase selected defensive domains before public launch (deferred until launch readiness).
 - [ ] Reserve the GitHub organization `bitcoinmathlab`.
 - [ ] Reserve `@bitcoinmathlab` on X.
-- [ ] Create the Bitcoin Math Lab LinkedIn page.
 - [ ] Reserve the Bitcoin Math Lab YouTube handle.
 - [ ] Record registrar, renewal, recovery, and account ownership in a private credential manager.
 - [ ] Complete a trademark review before taking paid subscriptions.

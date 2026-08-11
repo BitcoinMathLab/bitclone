@@ -30,9 +30,10 @@ Create a professional identity for Bitcoin Math Lab.
 #### Tasks
 
 - [x] Confirm the Bitcoin Math Lab name
-- [ ] Purchase the primary domain
-- [ ] Purchase any additional strategic domains
-- [ ] Reserve social media usernames
+- [x] Purchase `bitcoinmathlab.com` as the primary domain
+- [x] Defer additional strategic-domain purchases until launch readiness
+- [x] Reserve `bitcoinmathlab@gmail.com` as the bootstrap account
+- [x] Define account plan: reserve X and YouTube in Story 1.2; do not use LinkedIn
 - [x] Design a simple logo
 - [x] Select typography
 - [x] Define colour palette
@@ -46,6 +47,8 @@ Create a professional identity for Bitcoin Math Lab.
 #### Tasks
 
 - [ ] Create GitHub Organization
+- [ ] Create X account and reserve `@bitcoinmathlab`
+- [ ] Create YouTube channel and reserve `@bitcoinmathlab`
 - [ ] Create Frontend repository
 - [ ] Create Backend repository
 - [ ] Create BitClone repository (or migrate existing repository)
@@ -202,10 +205,9 @@ Allow people to follow the project.
 
 ### Story 4.2 — Social Presence
 
-Create
+Configure
 
-- [ ] X account
-- [ ] LinkedIn page
+- [ ] X profile
 - [ ] YouTube channel
 - [ ] GitHub profile customization
 
