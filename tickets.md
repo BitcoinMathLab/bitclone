@@ -46,17 +46,20 @@ Create a professional identity for Bitcoin Math Lab.
 
 #### Tasks
 
-- [ ] Create GitHub Organization
-- [ ] Create X account and reserve `@bitcoinmathlab`
-- [ ] Create YouTube channel and reserve `@bitcoinmathlab`
+- [x] Create GitHub Organization
+- [x] Create X account and reserve `@bitcoinmathlab`
+- [x] Create YouTube channel and reserve `@bitcoinmathlab`
 - [ ] Create Frontend repository
 - [ ] Create Backend repository
 - [ ] Create BitClone repository (or migrate existing repository)
 - [ ] Configure GitHub Projects
-- [ ] Configure issue templates
-- [ ] Configure pull request templates
+- [x] Configure issue templates
+- [x] Configure pull request templates
 - [ ] Configure branch protection
-- [ ] Configure GitHub Actions CI
+- [x] Configure GitHub Actions CI
+
+Operator steps for the remaining account, repository, project, and protection tasks are documented in
+[docs/project-organization.md](docs/project-organization.md).
 
 ---
 
