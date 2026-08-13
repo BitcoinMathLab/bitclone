@@ -51,7 +51,7 @@ Create a professional identity for Bitcoin Math Lab.
 - [x] Create YouTube channel and reserve `@bitcoinmathlab`
 - [x] Create Frontend repository
 - [x] Create Backend repository
-- [ ] Create BitClone repository (or migrate existing repository)
+- [x] Create BitClone repository (or migrate existing repository)
 - [ ] Configure GitHub Projects
 - [x] Configure issue templates
 - [x] Configure pull request templates
