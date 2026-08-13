@@ -55,7 +55,7 @@ Create a professional identity for Bitcoin Math Lab.
 - [x] Configure GitHub Projects
 - [x] Configure issue templates
 - [x] Configure pull request templates
-- [ ] Configure branch protection
+- [x] Configure branch protection
 - [x] Configure GitHub Actions CI
 
 Operator steps for the remaining account, repository, project, and protection tasks are documented in

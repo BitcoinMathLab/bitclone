@@ -44,7 +44,7 @@ pull requests to In review when opened, and mark linked items Done when their pu
 
 ## Repository settings
 
-The transferred repository uses `main` as its default branch. Protect `main` with a ruleset that:
+The transferred repository uses `main` as its default branch. Its branch protection policy:
 
 - requires a pull request before merging;
 - requires pull requests but no approval while the organization has only one member; require one approval and dismiss
@@ -66,7 +66,7 @@ GitHub plan makes them available. Disable wiki and discussions until there is an
 4. [x] Rename `master` to `main`, select it as the default branch, and update the local `origin` URL.
 5. [x] Confirm issues, pull requests, releases, stars, and redirects survived the transfer.
 6. [x] Create the organization project and its fields.
-7. [ ] Apply the `main` branch ruleset after the first CI run exposes both required status checks.
+7. [x] Protect `main` after the first CI run exposes both required status checks.
 8. [ ] Add the organization profile and repository metadata, then verify the public view while signed out.
 
 ## Social accounts
