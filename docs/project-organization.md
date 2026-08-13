@@ -30,7 +30,7 @@ and `developer-tools`.
 
 ## GitHub Project
 
-Create an organization project named **Bitcoin Math Lab Roadmap** with these fields:
+The public [Bitcoin Math Lab Roadmap](https://github.com/orgs/BitcoinMathLab/projects/1) uses these fields:
 
 - Status: Backlog, Ready, In progress, In review, Done
 - Release: the release number from `tickets.md`
@@ -47,7 +47,8 @@ pull requests to In review when opened, and mark linked items Done when their pu
 The transferred repository uses `main` as its default branch. Protect `main` with a ruleset that:
 
 - requires a pull request before merging;
-- requires one approval and dismisses stale approvals;
+- requires pull requests but no approval while the organization has only one member; require one approval and dismiss
+  stale approvals after a second maintainer joins;
 - requires conversation resolution;
 - requires the `Python 3.12 tests` and `Chromium browser tests` status checks;
 - requires branches to be up to date before merging;
@@ -64,7 +65,7 @@ GitHub plan makes them available. Disable wiki and discussions until there is an
 3. [x] Transfer `DrGregDoyle/BitClone` to `BitcoinMathLab/bitclone` with its history and collaboration metadata.
 4. [x] Rename `master` to `main`, select it as the default branch, and update the local `origin` URL.
 5. [x] Confirm issues, pull requests, releases, stars, and redirects survived the transfer.
-6. [ ] Create the organization project and its automation.
+6. [x] Create the organization project and its fields.
 7. [ ] Apply the `main` branch ruleset after the first CI run exposes both required status checks.
 8. [ ] Add the organization profile and repository metadata, then verify the public view while signed out.
 

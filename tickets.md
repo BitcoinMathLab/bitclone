@@ -52,7 +52,7 @@ Create a professional identity for Bitcoin Math Lab.
 - [x] Create Frontend repository
 - [x] Create Backend repository
 - [x] Create BitClone repository (or migrate existing repository)
-- [ ] Configure GitHub Projects
+- [x] Configure GitHub Projects
 - [x] Configure issue templates
 - [x] Configure pull request templates
 - [ ] Configure branch protection
