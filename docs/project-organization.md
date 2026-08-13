@@ -19,10 +19,10 @@ Use owner access only for organization administration; use repository roles for 
 
 | Repository | Purpose | Initial state |
 |---|---|---|
-| `bitclone` | Reusable Bitcoin execution, consensus, tracing, networking, and analysis engine | Transfer the existing `DrGregDoyle/BitClone` repository, preserving history, issues, and releases |
-| `frontend` | Bitcoin Math Lab browser application | Create when product UI work begins; do not copy the current dependency-free BitClone operator console into it |
-| `backend` | Product-specific API, accounts, labs, and orchestration around BitClone and Bitcoin Core | Create when the product boundary is defined; keep the reusable engine in `bitclone` |
-| `.github` | Organization profile and organization-wide community defaults | Create now with a public `profile/README.md` based on `docs/brand.md` |
+| `bitclone` | Reusable Bitcoin execution, consensus, tracing, networking, and analysis engine | Transferred from `DrGregDoyle/BitClone` with history and collaboration metadata preserved |
+| `frontend` | Bitcoin Math Lab browser application | Created empty; do not copy the current dependency-free BitClone operator console into it |
+| `backend` | Product-specific API, accounts, labs, and orchestration around BitClone and Bitcoin Core | Created empty; keep the reusable engine in `bitclone` |
+| `.github` | Organization profile and organization-wide community defaults | Create with a public `profile/README.md` during the documentation work |
 
 Use lowercase repository names in URLs and package references. Set each repository's homepage, description, topics, and
 social preview before announcing it. Recommended topics for `bitclone` are `bitcoin`, `education`, `python`, `consensus`,
@@ -30,7 +30,7 @@ and `developer-tools`.
 
 ## GitHub Project
 
-Create an organization project named **Bitcoin Math Lab Roadmap** with these fields:
+The public [Bitcoin Math Lab Roadmap](https://github.com/orgs/BitcoinMathLab/projects/1) uses these fields:
 
 - Status: Backlog, Ready, In progress, In review, Done
 - Release: the release number from `tickets.md`
@@ -44,11 +44,11 @@ pull requests to In review when opened, and mark linked items Done when their pu
 
 ## Repository settings
 
-After the existing repository is transferred, make `main` the default branch and update local clones. Protect `main`
-with a ruleset that:
+The transferred repository uses `main` as its default branch. Its branch protection policy:
 
 - requires a pull request before merging;
-- requires one approval and dismisses stale approvals;
+- requires pull requests but no approval while the organization has only one member; require one approval and dismiss
+  stale approvals after a second maintainer joins;
 - requires conversation resolution;
 - requires the `Python 3.12 tests` and `Chromium browser tests` status checks;
 - requires branches to be up to date before merging;
@@ -60,14 +60,14 @@ GitHub plan makes them available. Disable wiki and discussions until there is an
 
 ## Migration order
 
-1. Reserve the GitHub organization and enable owner two-factor authentication.
-2. Create the `.github`, `frontend`, and `backend` repositories.
-3. Transfer `DrGregDoyle/BitClone` to `BitcoinMathLab/bitclone` using GitHub's repository transfer flow.
-4. Rename `master` to `main`, select it as the default branch, and update the local `origin` URL.
-5. Confirm issues, pull requests, releases, stars, and redirects survived the transfer.
-6. Create the organization project and its automation.
-7. Apply the `main` branch ruleset after the first CI run exposes both required status checks.
-8. Add the organization profile and repository metadata, then verify the public view while signed out.
+1. [x] Reserve the GitHub organization.
+2. [x] Create the `frontend` and `backend` repositories.
+3. [x] Transfer `DrGregDoyle/BitClone` to `BitcoinMathLab/bitclone` with its history and collaboration metadata.
+4. [x] Rename `master` to `main`, select it as the default branch, and update the local `origin` URL.
+5. [x] Confirm issues, pull requests, releases, stars, and redirects survived the transfer.
+6. [x] Create the organization project and its fields.
+7. [x] Protect `main` after the first CI run exposes both required status checks.
+8. [ ] Add the organization profile and repository metadata, then verify the public view while signed out.
 
 ## Social accounts
 
