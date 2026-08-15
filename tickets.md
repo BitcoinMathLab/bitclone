@@ -69,11 +69,11 @@ Operator steps for the remaining account, repository, project, and protection ta
 
 Create
 
-- [ ] README.md
-- [ ] CONTRIBUTING.md
-- [ ] LICENSE
-- [ ] CODE_OF_CONDUCT.md
-- [ ] SECURITY.md
+- [x] README.md
+- [x] CONTRIBUTING.md
+- [x] LICENSE
+- [x] CODE_OF_CONDUCT.md
+- [x] SECURITY.md
 
 ---
 
