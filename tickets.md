@@ -99,11 +99,11 @@ Launch the first public version of bitcoinmathlab.com.
 
 #### Pages
 
-- [ ] Home
-- [ ] About
-- [ ] Roadmap
-- [ ] Blog
-- [ ] Contact
+- [x] Home
+- [x] About
+- [x] Roadmap
+- [x] Blog
+- [x] Contact
 
 ---
 
@@ -111,26 +111,32 @@ Launch the first public version of bitcoinmathlab.com.
 
 Include
 
-- [ ] Hero section
-- [ ] Mission statement
-- [ ] Product overview
-- [ ] Roadmap preview
-- [ ] GitHub links
-- [ ] Newsletter signup
-- [ ] Waitlist signup
+- [x] Hero section
+- [x] Mission statement
+- [x] Product overview
+- [x] Roadmap preview
+- [x] GitHub links
+- [x] Newsletter signup
+- [x] Waitlist signup
 
 ---
 
 ### Story 2.3 — Deployment
 
+Use the [website deployment runbook](docs/website-deployment.md). The temporary email action delivered in Story 2.2
+is the single MVP signup path; a managed mailing provider remains deferred.
+
 #### Tasks
 
-- [ ] Configure hosting
-- [ ] Configure HTTPS
-- [ ] Connect domain
-- [ ] Configure analytics
-- [ ] Configure error logging
-- [ ] Configure SEO metadata
+- [ ] Add repository deployment, security-header, monitoring, and SEO configuration
+- [ ] Create a Cloudflare Pages project connected only to `BitcoinMathLab/frontend`
+- [ ] Configure `main` production deployments and pull-request previews
+- [ ] Pass the hosted-preview smoke and rollback rehearsal
+- [ ] Connect `bitcoinmathlab.com`, redirect `www`, and enforce HTTPS
+- [ ] Enable Cloudflare Web Analytics and verify production traffic
+- [ ] Configure Sentry Angular error monitoring and verify a test event
+- [ ] Verify canonical metadata, `robots.txt`, `sitemap.xml`, and social preview metadata
+- [ ] Record the production URL, recovery owner, and launch-day smoke procedure
 
 ---
 
