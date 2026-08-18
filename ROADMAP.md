@@ -276,12 +276,15 @@ Launch the flagship educational tool as the October 12, 2026 MVP.
 
 Execution Trace Model
 
-- Immutable execution steps
-- Stack snapshots
-- Alt-stack snapshots
-- Opcode metadata
-- JSON serialization
-- Tests
+- [x] Immutable execution steps
+- [x] Stack snapshots
+- [x] Alt-stack snapshots
+- [x] Opcode metadata
+- [x] JSON serialization
+- [x] Tests
+
+The versioned contract and ordering rules are documented in
+[docs/execution-trace-model.md](docs/execution-trace-model.md).
 
 ---
 
