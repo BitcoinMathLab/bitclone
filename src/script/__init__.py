@@ -10,3 +10,4 @@ from src.script.scriptpubkeys import *
 from src.script.scriptsigs import *
 from src.script.sig_ops import *
 from src.script.stack import *
+from src.script.trace import *
