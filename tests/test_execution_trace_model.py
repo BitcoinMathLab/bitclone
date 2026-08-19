@@ -1,5 +1,5 @@
 import json
-from dataclasses import FrozenInstanceError
+from dataclasses import FrozenInstanceError, replace
 
 import pytest
 
@@ -9,6 +9,7 @@ from src.script import (
     ExecutionTraceStep,
     OpcodeMetadata,
     StackSnapshot,
+    TraceDiagnostic,
 )
 
 
@@ -88,6 +89,7 @@ def test_trace_model_objects_are_frozen():
     metadata = _opcode(0x51)
     step = _step(0, metadata, main_after=snapshot)
     trace = ExecutionTrace(b"\x51", (step,))
+    diagnostic = TraceDiagnostic(code="failed", message="It failed.")
 
     with pytest.raises(FrozenInstanceError):
         snapshot.items = ()
@@ -97,6 +99,8 @@ def test_trace_model_objects_are_frozen():
         step.index = 1
     with pytest.raises(FrozenInstanceError):
         trace.script = b""
+    with pytest.raises(FrozenInstanceError):
+        diagnostic.code = "changed"
 
 
 def test_opcode_metadata_uses_canonical_names_and_preserves_empty_push_data():
@@ -224,3 +228,40 @@ def test_execution_trace_rejects_disconnected_stack_transitions(stack_name):
     expected = "main stack state" if stack_name == "main" else "alt-stack state"
     with pytest.raises(ValueError, match=expected):
         ExecutionTrace(b"\x51\x61", (first, second))
+
+
+def test_trace_step_requires_matching_diagnostic_index():
+    diagnostic = TraceDiagnostic(
+        code="execution-error",
+        message="The instruction failed.",
+        step_index=1,
+        opcode_name="OP_1",
+    )
+
+    with pytest.raises(ValueError, match="index must match"):
+        replace(_step(0, _opcode(0x51)), diagnostic=diagnostic)
+
+
+def test_successful_trace_rejects_diagnostic():
+    diagnostic = TraceDiagnostic(code="failure", message="It failed.")
+
+    with pytest.raises(ValueError, match="successful trace"):
+        ExecutionTrace(b"", success=True, diagnostic=diagnostic)
+
+
+def test_trace_requires_matching_step_and_top_level_diagnostics():
+    diagnostic = TraceDiagnostic(
+        code="opcode-failed",
+        message="OP_RETURN failed.",
+        step_index=0,
+        opcode_name="OP_RETURN",
+    )
+    step_without_diagnostic = _step(0, _opcode(0x6a))
+
+    with pytest.raises(ValueError, match="must match"):
+        ExecutionTrace(
+            b"\x6a",
+            (step_without_diagnostic,),
+            success=False,
+            diagnostic=diagnostic,
+        )
