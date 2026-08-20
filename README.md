@@ -83,9 +83,9 @@ npm run test:browser
 The previous detailed notes for remote Bitcoin Core access, the API, and the operator console are preserved in the
 [development reference](docs/bitclone-development.md).
 
-The immutable data contract for the MVP script visualizer is documented in the
-[execution trace model](docs/execution-trace-model.md). Engine instrumentation and trace explanations are intentionally
-implemented in the following tracing story.
+The MVP script visualizer foundation is documented in the immutable
+[execution trace model](docs/execution-trace-model.md) and the opt-in
+[script tracing guide](docs/script-tracing.md).
 
 ## Contributing and security
 

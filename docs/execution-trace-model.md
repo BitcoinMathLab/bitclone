@@ -12,8 +12,9 @@ The model provides four frozen, slotted data classes:
 - `ExecutionTraceStep` records the main-stack and alt-stack state before and after one instruction.
 - `ExecutionTrace` contains the ordered steps for one serialized script.
 
-Optional engine tracing, plain-language explanations, and failure diagnostics remain Story 9.2 work. P2PKH orchestration
-and the HTTP response contract remain Story 9.3 work.
+Story 9.2 adds optional engine tracing, plain-language explanations, and failure diagnostics without changing the core
+snapshot ordering defined here. See [Script Tracing](script-tracing.md) for the execution API and diagnostic contract.
+P2PKH orchestration and the HTTP response contract remain Story 9.3 work.
 
 ## Stack ordering and byte encoding
 
@@ -124,3 +125,11 @@ The serialized top-level shape is versioned from its first release:
 Each actual step supplies its opcode metadata and `before`/`after` snapshots for both `main` and `alt` stacks. Additive
 fields may be introduced without changing `schema_version`; incompatible field or semantic changes require a new
 version.
+
+Generated Story 9.2 traces use that additive-field policy to include:
+
+- `explanation` on each executed step;
+- `success` on the complete trace; and
+- `diagnostic` on a failed trace and, when an instruction caused the failure, on the corresponding step.
+
+Objects constructed without these optional values retain the original Story 9.1 dictionary and JSON shape.

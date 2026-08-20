@@ -292,10 +292,10 @@ The versioned contract and ordering rules are documented in
 
 Script Tracing
 
-- Optional tracing mode
-- Capture every opcode
-- Plain-English explanations
-- Failure diagnostics
+- [x] Optional tracing mode
+- [x] Capture every opcode
+- [x] Plain-English explanations
+- [x] Failure diagnostics
 
 ---
 

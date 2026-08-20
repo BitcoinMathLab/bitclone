@@ -2,7 +2,7 @@
 The ScriptEngine class
 """
 import json
-from dataclasses import replace, dataclass
+from dataclasses import replace, dataclass, field
 from io import BytesIO
 
 from src.core import ECC, ScriptVerifyFlag, serialize_data
@@ -22,6 +22,14 @@ from src.script.context import SignatureVersion
 from src.script.stack_ops import encode_pushdata
 from src.script.scriptsigs import ScriptSig
 from src.script.stack import BitStack, BitNum
+from src.script.trace import (
+    ExecutionTrace,
+    ExecutionTraceStep,
+    OpcodeMetadata,
+    StackSnapshot,
+    TraceDiagnostic,
+    explain_opcode,
+)
 from src.tx.tx import Witness
 
 __all__ = ["ScriptEngine"]
@@ -54,6 +62,13 @@ class Instruction:
         return json.dumps(self.to_dict(), indent=2)
 
 
+@dataclass(slots=True)
+class _TraceState:
+    script: bytes
+    steps: list[ExecutionTraceStep] = field(default_factory=list)
+    diagnostic: TraceDiagnostic | None = None
+
+
 class ScriptEngine:
 
     def __init__(self):
@@ -61,6 +76,7 @@ class ScriptEngine:
         self.alt_stack = BitStack()
         self.ops_log = []
         self.tapscript_validation_weight_left: int | None = None
+        self.last_trace: ExecutionTrace | None = None
         # self.sig_engine = SignatureEngine()
 
     def clear_stacks(self):
@@ -108,10 +124,10 @@ class ScriptEngine:
         # Non-push opcodes: single byte
         return Instruction(opcode=opcode, raw=opcode_byte, is_push=False, push_data=None)
 
-    def _handle_conditionals(self, opcode: int, stream: BytesIO, ctx: ScriptContext):
+    def _select_conditional_branch(self, opcode: int, stream: BytesIO) -> tuple[bytes, int]:
         """
         Handle OP_IF (0x63) and OP_NOTIF (0x64) with proper branching logic.
-        Reads stream until OP_ELSE or OP_ENDIF, validates structure, and executes appropriate branch.
+        Read through OP_ENDIF, validate the structure, and return the selected branch and offset.
         """
         # Validate opcode
         if opcode not in [0x63, 0x64]:  # OP_IF, OP_NOTIF
@@ -128,18 +144,14 @@ class ScriptEngine:
             condition_met = not condition_met
 
         # Read and parse the conditional block structure
-        if_branch, else_branch = self._parse_conditional_block(stream)
+        if_branch, else_branch, if_offset, else_offset = self._parse_conditional_block(stream)
 
         # Determine which branch to execute
         if condition_met:
-            branch_to_execute = if_branch
-        else:
-            branch_to_execute = else_branch
+            return if_branch, if_offset
+        return else_branch, else_offset
 
-        # Execute the selected branch
-        return self.execute_script(branch_to_execute, ctx)
-
-    def _parse_conditional_block(self, stream: BytesIO) -> tuple[bytes, bytes]:
+    def _parse_conditional_block(self, stream: BytesIO) -> tuple[bytes, bytes, int, int]:
         """
         Parse the conditional block structure from the stream.
         Returns (if_branch, else_branch) as bytes.
@@ -148,6 +160,8 @@ class ScriptEngine:
         if_branch = BytesIO()
         else_branch = BytesIO()
         current_branch = if_branch
+        if_offset = stream.tell()
+        else_offset = if_offset
 
         depth = 1  # Track nested conditionals
         found_endif = False
@@ -170,6 +184,7 @@ class ScriptEngine:
                     # This ELSE belongs to the top-level IF/NOTIF:
                     # switch branches but do NOT write OP_ELSE into either branch.
                     current_branch = else_branch
+                    else_offset = stream.tell()
                     continue
                 else:
                     # ELSE for a nested conditional, keep it in the branch
@@ -194,7 +209,7 @@ class ScriptEngine:
         if not found_endif:
             raise ScriptEngineError("Missing OP_ENDIF: conditional block not properly closed")
 
-        return if_branch.getvalue(), else_branch.getvalue()
+        return if_branch.getvalue(), else_branch.getvalue(), if_offset, else_offset
 
     def _handle_signatures(self, opcode: int, ctx: ScriptContext):
         """
@@ -690,105 +705,231 @@ class ScriptEngine:
             return False
         return self.validate_stack()
 
-    def execute_script(self, script: bytes | BytesIO, ctx: ScriptContext = None) -> bool:
-        """
-        We only execute the given script with the accompanying ExecutionContext. We do NOT manage or validate the
-        stacks.
-        """
+    @staticmethod
+    def _script_bytes(script: bytes | BytesIO) -> bytes:
+        if isinstance(script, bytes):
+            return script
+        if not isinstance(script, BytesIO):
+            raise TypeError("Script execution requires bytes or BytesIO")
+        position = script.tell()
+        value = script.read()
+        script.seek(position)
+        return value
 
-        # Get script as byte stream
+    def _append_trace_step(
+            self,
+            state: _TraceState,
+            instruction: Instruction,
+            byte_offset: int,
+            main_before: StackSnapshot,
+            alt_before: StackSnapshot,
+            diagnostic: TraceDiagnostic | None = None,
+    ) -> None:
+        opcode = OpcodeMetadata.create(
+            value=instruction.opcode,
+            byte_offset=byte_offset,
+            raw=instruction.raw,
+            is_push=instruction.is_push,
+            push_data=instruction.push_data,
+        )
+        state.steps.append(ExecutionTraceStep(
+            index=len(state.steps),
+            opcode=opcode,
+            main_stack_before=main_before,
+            main_stack_after=StackSnapshot.capture(self.stack),
+            alt_stack_before=alt_before,
+            alt_stack_after=StackSnapshot.capture(self.alt_stack),
+            explanation=explain_opcode(opcode),
+            diagnostic=diagnostic,
+        ))
+
+    @staticmethod
+    def _instruction_failure(
+            *,
+            code: str,
+            message: str,
+            step_index: int,
+            opcode_name: str,
+            exception: Exception | None = None,
+    ) -> TraceDiagnostic:
+        return TraceDiagnostic(
+            code=code,
+            message=message,
+            step_index=step_index,
+            opcode_name=opcode_name,
+            exception_type=type(exception).__name__ if exception is not None else None,
+        )
+
+    def _execute_script(
+            self,
+            script: bytes | BytesIO,
+            ctx: ScriptContext,
+            *,
+            trace_state: _TraceState | None,
+            byte_offset_base: int,
+    ) -> bool:
         stream = get_stream(script) if isinstance(script, bytes) else script
-
-        # Read script
         valid_script = True
+
         while valid_script:
+            relative_offset = stream.tell()
+            try:
+                instruction = self._read_instructions(stream)
+            except Exception as exc:
+                if trace_state is not None:
+                    trace_state.diagnostic = TraceDiagnostic(
+                        code="parse-error",
+                        message=str(exc) or f"Script parsing raised {type(exc).__name__}.",
+                        exception_type=type(exc).__name__,
+                    )
+                raise
 
-            # Handle data
-            instr = self._read_instructions(stream)
-
-            # Handle end of stream
-            if instr is None:
+            if instruction is None:
                 self.ops_log.append("--- END OF SCRIPT ---")
                 break
 
-            opcode = instr.opcode
+            opcode = instruction.opcode
+            opcode_name = _OP.get_name(opcode) or f"OP_UNKNOWN_{opcode:02X}"
+            self.ops_log.append(_OP.get_name(opcode))
+            main_before = StackSnapshot.capture(self.stack) if trace_state is not None else None
+            alt_before = StackSnapshot.capture(self.alt_stack) if trace_state is not None else None
+            selected_branch: tuple[bytes, int] | None = None
+            diagnostic: TraceDiagnostic | None = None
 
-            # Get opcode name
-            opcode_name = _OP.get_name(opcode)
-            self.ops_log.append(opcode_name)
+            try:
+                if instruction.is_push:
+                    self.stack.push(instruction.push_data or b"")
+                    self.ops_log.append((instruction.push_data or b"").hex())
+                elif opcode == 0:
+                    self.stack.pushbool(False)
+                elif 0x51 <= opcode <= 0x60:
+                    self.stack.push(BitNum(opcode - 0x50).to_bytes())
+                elif opcode == 0x61:
+                    pass
+                elif opcode in (0x63, 0x64):
+                    branch, branch_offset = self._select_conditional_branch(opcode, stream)
+                    selected_branch = (branch, byte_offset_base + branch_offset)
+                elif opcode == 0x6a:
+                    valid_script = False
+                elif opcode in (0xac, 0xae, 0xba):
+                    self._handle_signatures(opcode, ctx)
+                elif opcode == 0xb1:
+                    if ctx is not None and ctx.script_flags & ScriptVerifyFlag.CHECKLOCKTIMEVERIFY:
+                        valid_script = self._checklocktime(ctx)
+                else:
+                    func = OPCODE_MAP[opcode]
+                    if opcode in (0x6b, 0x6c):
+                        func(self.stack, self.alt_stack)
+                    elif opcode in (0x69, 0x88, 0x9d):
+                        valid_script = func(self.stack)
+                    elif opcode in (0xad, 0xaf):
+                        self._handle_checksig(ctx) if opcode == 0xad else self._handle_multisig(ctx)
+                        valid_script = op_verify(self.stack)
+                    else:
+                        func(self.stack)
+            except Exception as exc:
+                if trace_state is not None:
+                    diagnostic = self._instruction_failure(
+                        code="execution-error",
+                        message=str(exc) or f"{opcode_name} raised {type(exc).__name__}.",
+                        step_index=len(trace_state.steps),
+                        opcode_name=opcode_name,
+                        exception=exc,
+                    )
+                    trace_state.diagnostic = diagnostic
+                    self._append_trace_step(
+                        trace_state,
+                        instruction,
+                        byte_offset_base + relative_offset,
+                        main_before,
+                        alt_before,
+                        diagnostic,
+                    )
+                raise
 
-            # --- Data pushes (all OP_PUSHBYTES / PUSHDATA*) ---
-            if instr.is_push:
-                # push raw data onto the stack
-                self.stack.push(instr.push_data or b"")
-                # log the pushed data as hex for debugging
-                self.ops_log.append((instr.push_data or b"").hex())
-                continue
+            if trace_state is not None:
+                if not valid_script:
+                    diagnostic = self._instruction_failure(
+                        code="opcode-failed",
+                        message=f"{opcode_name} caused script execution to fail.",
+                        step_index=len(trace_state.steps),
+                        opcode_name=opcode_name,
+                    )
+                    trace_state.diagnostic = diagnostic
+                self._append_trace_step(
+                    trace_state,
+                    instruction,
+                    byte_offset_base + relative_offset,
+                    main_before,
+                    alt_before,
+                    diagnostic,
+                )
 
-            # --- OP_0 ---
-            if opcode == 0:
-                self.stack.pushbool(False)
-                continue
+            if selected_branch is not None:
+                branch, branch_offset = selected_branch
+                valid_script = self._execute_script(
+                    branch,
+                    ctx,
+                    trace_state=trace_state,
+                    byte_offset_base=branch_offset,
+                )
 
-            # --- OP_n (1..16) ---
-            if 0x51 <= opcode <= 0x60:
-                num = opcode - 0x50
-                self.stack.push(BitNum(num).to_bytes())
-                continue
-
-            # --- OP_NOP ---
-            if opcode == 0x61:
-                continue
-
-            # --- Conditionals: OP_IF, OP_NOTIF ---
-            if opcode in (0x63, 0x64):
-                valid_script = self._handle_conditionals(opcode, stream, ctx)
-                continue
-
-            # --- OP_RETURN (unconditional failure) ---
-            if opcode == 0x6a:
-                valid_script = False
-                continue
-
-            # --- Signature-related opcodes that don't call OP_VERIFY ---
-            if opcode in [0xac, 0xae, 0xba]:
-                self._handle_signatures(opcode, ctx)
-                continue
-
-            # --- Check Locktime Verify (OP_CLTV)
-            if opcode == 0xb1:
-                if ctx is not None and ctx.script_flags & ScriptVerifyFlag.CHECKLOCKTIMEVERIFY:
-                    valid_script = self._checklocktime(ctx)
-                # Before BIP65 activation OP_CHECKLOCKTIMEVERIFY is OP_NOP2.
-                continue
-
-            # --- All remaining opcodes: dispatch via OPCODE_MAP ---
-            func = OPCODE_MAP[opcode]
-
-            # Main stack and Alt stack ops (OP_TOALTSTACK, OP_FROMALTSTACK)
-            if opcode in (0x6b, 0x6c):
-                func(self.stack, self.alt_stack)
-
-            # Verify-style ops that return a bool and may end script (OP_VERIFY, OP_EQUALVERIFY, etc.)
-            elif opcode in (0x69, 0x88, 0x9d):
-                valid_script = func(self.stack)
-
-            # Verify-style ops for verifying a signature (OP_CHECKSIGVERIFY, OP_CHECKMULTISIGVERIFY, etc...)
-            elif opcode in [0xad, 0xaf]:
-                self._handle_checksig(ctx) if opcode == 0xad else self._handle_multisig(ctx)
-                valid_script = op_verify(self.stack)
-
-            else:
-                # Normal stack-only opcodes
-                func(self.stack)
-
-        # --- Get data after OP_RETURN
         if not valid_script:
             self.ops_log.append("Invalid script")
             self.ops_log.append(to_asm(script))
-
-        # Return script status
         return valid_script
+
+    def execute_script(
+            self,
+            script: bytes | BytesIO,
+            ctx: ScriptContext = None,
+            *,
+            trace: bool = False,
+    ) -> bool:
+        """Execute a script, optionally retaining an immutable trace in ``last_trace``.
+
+        The return value, stack mutations, operation log, and raised exceptions are
+        unchanged when tracing is disabled. When tracing is enabled, exceptions are
+        still raised after the failing instruction and its diagnostic are captured.
+        """
+        if not isinstance(trace, bool):
+            raise TypeError("trace must be a boolean")
+
+        self.last_trace = None
+        trace_state = _TraceState(self._script_bytes(script)) if trace else None
+        root_offset = -script.tell() if isinstance(script, BytesIO) else 0
+        try:
+            result = self._execute_script(
+                script,
+                ctx,
+                trace_state=trace_state,
+                byte_offset_base=root_offset,
+            )
+        except Exception:
+            if trace_state is not None:
+                self.last_trace = ExecutionTrace(
+                    trace_state.script,
+                    tuple(trace_state.steps),
+                    success=False,
+                    diagnostic=trace_state.diagnostic,
+                )
+            raise
+
+        if trace_state is not None:
+            self.last_trace = ExecutionTrace(
+                trace_state.script,
+                tuple(trace_state.steps),
+                success=result,
+                diagnostic=trace_state.diagnostic,
+            )
+        return result
+
+    def trace_script(self, script: bytes | BytesIO, ctx: ScriptContext = None) -> ExecutionTrace:
+        """Execute a script and return its trace without suppressing execution exceptions."""
+        self.execute_script(script, ctx, trace=True)
+        if self.last_trace is None:  # pragma: no cover - defensive invariant
+            raise RuntimeError("Tracing completed without producing an execution trace")
+        return self.last_trace
 
     def validate_script(
             self,
@@ -796,16 +937,35 @@ class ScriptEngine:
             ctx: ScriptContext = None,
             *,
             require_clean_stack: bool = True,
+            trace: bool = False,
     ) -> bool:
         # Clear stacks
         self.clear_stacks()
 
         # Execute script
-        if not self.execute_script(script, ctx):
+        if not self.execute_script(script, ctx, trace=trace):
             return False  # Triggered invalid script
 
         # Validate stack
-        return self.validate_stack(require_clean_stack=require_clean_stack)
+        stack_height = self.stack.height
+        result = self.validate_stack(require_clean_stack=require_clean_stack)
+        if trace and not result and self.last_trace is not None:
+            if stack_height == 0:
+                code = "empty-final-stack"
+                message = "The script finished with an empty main stack."
+            elif require_clean_stack and stack_height != 1:
+                code = "unclean-final-stack"
+                message = f"The script finished with {stack_height} items instead of exactly one."
+            else:
+                code = "false-final-value"
+                message = "The script finished with a false value on top of the main stack."
+            diagnostic = TraceDiagnostic(code=code, message=message)
+            self.last_trace = replace(
+                self.last_trace,
+                success=False,
+                diagnostic=diagnostic,
+            )
+        return result
 
     def validate_stack(self, *, require_clean_stack: bool = True) -> bool:
         """
