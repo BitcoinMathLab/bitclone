@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=80"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bitcoinmathlab-bitclone"
+version = "0.1.0"
+description = "Reusable Bitcoin execution and analysis engine for Bitcoin Math Lab"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "cryptography==46.0.3",
+    "siphash==0.0.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==9.0.2",
+]
+[tool.setuptools.packages.find]
+include = ["src*"]

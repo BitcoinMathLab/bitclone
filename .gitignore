@@ -31,6 +31,7 @@ blk*.dat
 __pycache__/
 *.pyc
 *.pyo
+*.egg-info/
 
 # Virtual environments
 venv/

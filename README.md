@@ -87,6 +87,10 @@ The MVP script visualizer foundation is documented in the immutable
 [execution trace model](docs/execution-trace-model.md) and the opt-in
 [script tracing guide](docs/script-tracing.md).
 
+The transport-neutral Story 9.3 boundary for validating and tracing a complete legacy P2PKH spend is documented in
+the [P2PKH spend tracing guide](docs/p2pkh-spend-tracing.md). HTTP validation and response models remain in the
+separate Bitcoin Math Lab backend.
+
 ## Contributing and security
 
 Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) and the

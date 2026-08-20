@@ -84,6 +84,8 @@ class P2PKH_Sig(ScriptSig):
 
     @classmethod
     def matches(cls, b: bytes) -> bool:
+        if not isinstance(b, bytes) or len(b) < 2:
+            return False
         sig_len = b[0]
         offset = 1 + sig_len
 
@@ -92,13 +94,15 @@ class P2PKH_Sig(ScriptSig):
 
         sig = b[1:offset]
         pubkey_len = b[offset]
-        pubkey = b[offset + 1: offset + 1 + pubkey_len]
+        pubkey_end = offset + 1 + pubkey_len
+        pubkey = b[offset + 1:pubkey_end]
 
         truth_list = [
             0x01 <= sig_len <= 0x4b,
             len(sig) == sig_len,
             pubkey_len in PUBKEY_LENGTHS,  # tighter: must be 33 or 65
-            len(pubkey) == pubkey_len
+            len(pubkey) == pubkey_len,
+            pubkey_end == len(b),
         ]
         return all(truth_list)
 
