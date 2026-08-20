@@ -303,9 +303,13 @@ Script Tracing
 
 Backend API
 
-- Execute P2PKH
-- Return structured trace
-- Integration tests
+- [x] Execute P2PKH
+- [x] Return structured trace
+- [x] Integration tests
+
+BitClone owns the transport-neutral spend orchestration described in
+[docs/p2pkh-spend-tracing.md](docs/p2pkh-spend-tracing.md). The versioned HTTP contract and its integration tests live
+in the separate Bitcoin Math Lab backend repository.
 
 ---
 
