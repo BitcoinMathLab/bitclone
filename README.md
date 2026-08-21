@@ -91,6 +91,9 @@ The transport-neutral Story 9.3 boundary for validating and tracing a complete l
 the [P2PKH spend tracing guide](docs/p2pkh-spend-tracing.md). HTTP validation and response models remain in the
 separate Bitcoin Math Lab backend.
 
+Real-transaction analysis can use the stable [`classify_spend`](docs/spend-classification.md) boundary to identify
+standard legacy, SegWit, nested SegWit, and Taproot spend paths without executing the script.
+
 ## Contributing and security
 
 Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) and the
