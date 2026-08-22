@@ -376,7 +376,7 @@ class P2TR_Key(ScriptPubKey):
             try:
                 _ = PubKey.from_xonly(script_bytes[2:])
             except PubKeyError as e:
-                raise f"Given script fails x-only public key validation: {e}"
+                raise PubKeyError(f"Given script fails x-only public key validation: {e}") from e
 
             obj = object.__new__(cls)
             obj.script = script_bytes
