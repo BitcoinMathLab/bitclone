@@ -74,11 +74,7 @@ class P2PK_Key(ScriptPubKey):
 
     @classmethod
     def matches(cls, b: bytes) -> bool:
-        return all([
-            len(b) - 2 in PUBKEY_LENGTHS,
-            b[0] in (OP_PUSHBYTES_33[0], OP_PUSHBYTES_65[0]),
-            b[-1] == OP_CHECKSIG[0]
-        ])
+        return len(b) in (35, 67) and b[0] == len(b) - 2 and b[-1] == OP_CHECKSIG[0]
 
     @classmethod
     def from_bytes(cls, byte_stream: SERIALIZED):
@@ -111,6 +107,8 @@ class P2PKH_Key(ScriptPubKey):
 
     @classmethod
     def matches(cls, b: bytes) -> bool:
+        if len(b) != 25:
+            return False
         truth_list = [
             b[0] == OP_DUP[0],
             b[1] == OP_HASH160[0],
@@ -190,6 +188,8 @@ class P2MS_Key(ScriptPubKey):
 
     @classmethod
     def matches(cls, b: bytes) -> bool:
+        if len(b) < 3:
+            return False
         # Confirm leading and tail
         lead_byte = b[0]
         tail_byte = b[-1]
@@ -246,11 +246,12 @@ class P2SH_Key(ScriptPubKey):
 
     @classmethod
     def matches(cls, b: bytes) -> bool:
+        if len(b) != 23:
+            return False
         truth_list = [
             b[0] == OP_HASH160[0],  # OP_HASH160
             b[1] == OP_PUSHBYTES_20[0],  # OP_PUSHBYTES_20
             b[-1] == OP_EQUAL[0],  # OP_EQUAL
-            len(b) == 23  # ScriptPubKey has expected hash length
         ]
         return all(truth_list)
 
@@ -358,6 +359,8 @@ class P2TR_Key(ScriptPubKey):
 
     @classmethod
     def matches(cls, b: bytes) -> bool:
+        if len(b) != 34:
+            return False
         truth_list = [
             b[0] == OP_1[0],
             b[1] == OP_PUSHBYTES_32[0],
