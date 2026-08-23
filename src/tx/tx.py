@@ -480,7 +480,8 @@ class Tx(Serializable):
 
     @property
     def vbytes(self):
-        return round(self.wu / 4, 2)
+        """Return BIP 141 virtual transaction size, rounded up to a whole vbyte."""
+        return (self.wu + 3) // 4
 
     @classmethod
     def from_bytes(cls, byte_stream: SERIALIZED):
