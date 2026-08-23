@@ -9,7 +9,7 @@ def transaction(*, segwit: bool) -> Tx:
             TxOut(1_000, bytes.fromhex("76a914" + "22" * 20 + "88ac")),
             TxOut(2_000, b"\x51"),
         ],
-        witness=[Witness([b"signature", b"public key"])] if segwit else None,
+        witness=[Witness([b"signature", b"public keys"])] if segwit else None,
         locktime=840_000,
     )
 
@@ -39,7 +39,10 @@ def test_inspects_marker_flag_and_each_segwit_stack_item():
     assert fields[1].id == "marker-flag"
     assert fields[1].hex == "0001"
     assert next(field for field in fields if field.id == "input-0-witness-count").decoded == "2"
-    assert next(field for field in fields if field.id == "input-0-witness-1").hex == b"public key".hex()
+    assert next(field for field in fields if field.id == "input-0-witness-1").hex == b"public keys".hex()
+    assert tx.wu % 4 != 0
+    assert tx.vbytes == (tx.wu + 3) // 4
+    assert isinstance(tx.vbytes, int)
 
 
 def test_marks_coinbase_outpoint_and_final_sequence():
