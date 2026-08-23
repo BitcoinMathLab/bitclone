@@ -1,3 +1,5 @@
+import pytest
+
 from src.tx import Tx, TxIn, TxOut, Witness, inspect_transaction_bytes
 
 
@@ -25,7 +27,9 @@ def test_inspects_every_legacy_transaction_byte_in_serialization_order():
         ("input-count", 4),
         ("input-0-previous-txid", 5),
     ]
-    assert next(field for field in fields if field.id == "output-count").decoded == "2"
+    assert next(field for field in fields if field.id == "output-count").decoded == (
+        "2 (1 byte CompactSize)"
+    )
     assert next(field for field in fields if field.id == "output-1-amount").decoded == "2000 sats"
     assert next(field for field in fields if field.id == "output-0-script-pubkey").decoded == (
         "25 bytes P2PKH locking script"
@@ -47,7 +51,9 @@ def test_inspects_marker_flag_and_each_segwit_stack_item():
     assert b"".join(bytes.fromhex(field.hex) for field in fields) == tx.to_bytes()
     assert fields[1].id == "marker-flag"
     assert fields[1].hex == "0001"
-    assert next(field for field in fields if field.id == "input-0-witness-count").decoded == "2"
+    assert next(field for field in fields if field.id == "input-0-witness-count").decoded == (
+        "2 (1 byte CompactSize)"
+    )
     assert next(field for field in fields if field.id == "input-0-witness-1").hex == b"public keys".hex()
     assert next(field for field in fields if field.id == "input-0-witness-1").decoded == (
         "11 bytes witness stack item"
@@ -69,3 +75,26 @@ def test_marks_coinbase_outpoint_and_final_sequence():
         "(coinbase marker)"
     )
     assert next(field for field in fields if field.id == "input-0-sequence").decoded.endswith("(final)")
+
+
+@pytest.mark.parametrize(
+    ("scriptpubkey", "expected_type"),
+    [
+        (bytes.fromhex("76a914" + "11" * 20 + "88ac"), "P2PKH"),
+        (bytes.fromhex("a914" + "11" * 20 + "87"), "P2SH"),
+        (bytes.fromhex("0014" + "11" * 20), "P2WPKH"),
+        (bytes.fromhex("0020" + "11" * 32), "P2WSH"),
+        (bytes.fromhex("5120" + "11" * 32), "P2TR"),
+    ],
+)
+def test_decodes_standard_locking_script_types(scriptpubkey: bytes, expected_type: str):
+    tx = Tx(
+        inputs=[TxIn(bytes(32), 0xFFFFFFFF, b"coinbase", 0xFFFFFFFF)],
+        outputs=[TxOut(1_000, scriptpubkey)],
+    )
+
+    field = next(
+        field for field in inspect_transaction_bytes(tx) if field.id == "output-0-script-pubkey"
+    )
+
+    assert field.decoded == f"{len(scriptpubkey)} bytes {expected_type} locking script"

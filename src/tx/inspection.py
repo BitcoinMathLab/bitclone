@@ -140,7 +140,14 @@ class _Inspector:
         return tuple(self.fields)
 
     def _compact(self, field_id: str, label: str, group: str, value: int) -> None:
-        self._add(field_id, label, group, write_compact_size(value), str(value))
+        encoded = write_compact_size(value)
+        self._add(
+            field_id,
+            label,
+            group,
+            encoded,
+            f"{value} ({_describe_byte_length(len(encoded))} CompactSize)",
+        )
 
     def _add(self, field_id: str, label: str, group: str, raw: bytes, decoded: str) -> None:
         self.fields.append(
