@@ -27,6 +27,15 @@ def test_inspects_every_legacy_transaction_byte_in_serialization_order():
     ]
     assert next(field for field in fields if field.id == "output-count").decoded == "2"
     assert next(field for field in fields if field.id == "output-1-amount").decoded == "2000 sats"
+    assert next(field for field in fields if field.id == "output-0-script-pubkey").decoded == (
+        "25 bytes P2PKH locking script"
+    )
+    assert next(field for field in fields if field.id == "output-1-script-pubkey").decoded == (
+        "1 byte nonstandard or unrecognized locking script"
+    )
+    assert next(field for field in fields if field.id == "input-0-script-sig").decoded == (
+        "1 byte unlocking script"
+    )
     assert fields[-1].decoded == "840000 (block height)"
 
 
@@ -40,6 +49,9 @@ def test_inspects_marker_flag_and_each_segwit_stack_item():
     assert fields[1].hex == "0001"
     assert next(field for field in fields if field.id == "input-0-witness-count").decoded == "2"
     assert next(field for field in fields if field.id == "input-0-witness-1").hex == b"public keys".hex()
+    assert next(field for field in fields if field.id == "input-0-witness-1").decoded == (
+        "11 bytes witness stack item"
+    )
     assert tx.wu % 4 != 0
     assert tx.vbytes == (tx.wu + 3) // 4
     assert isinstance(tx.vbytes, int)
