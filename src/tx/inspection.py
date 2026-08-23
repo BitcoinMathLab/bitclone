@@ -3,7 +3,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from src.core import TX, write_compact_size
+from src.core import ScriptPubKeyError, TX, write_compact_size
+from src.script.scriptpubkeys import get_scriptpubkey_type
 from src.tx.tx import Tx
 
 __all__ = ["TransactionByteField", "inspect_transaction_bytes"]
@@ -67,7 +68,7 @@ class _Inspector:
                     f"Input {display} scriptSig",
                     "input",
                     tx_input.scriptsig,
-                    f"{len(tx_input.scriptsig)} bytes",
+                    f"{_describe_byte_length(len(tx_input.scriptsig))} unlocking script",
                 )
             self._add(
                 f"input-{index}-sequence",
@@ -99,7 +100,7 @@ class _Inspector:
                     f"Output {display} locking script",
                     "output",
                     tx_output.scriptpubkey,
-                    f"{len(tx_output.scriptpubkey)} bytes",
+                    _describe_scriptpubkey(tx_output.scriptpubkey),
                 )
 
         if tx.is_segwit:
@@ -124,7 +125,7 @@ class _Inspector:
                             f"Input {display} witness item {item_index + 1}",
                             "witness",
                             item,
-                            f"{len(item)} bytes",
+                            f"{_describe_byte_length(len(item))} witness stack item",
                         )
 
         self._add(
@@ -178,3 +179,16 @@ def _describe_locktime(locktime: int) -> str:
     if locktime < 500_000_000:
         return f"{locktime} (block height)"
     return f"{locktime} (Unix timestamp)"
+
+
+def _describe_byte_length(length: int) -> str:
+    return f"{length} {'byte' if length == 1 else 'bytes'}"
+
+
+def _describe_scriptpubkey(scriptpubkey: bytes) -> str:
+    length = _describe_byte_length(len(scriptpubkey))
+    try:
+        script_type = get_scriptpubkey_type(scriptpubkey).value
+    except ScriptPubKeyError:
+        return f"{length} nonstandard or unrecognized locking script"
+    return f"{length} {script_type} locking script"
