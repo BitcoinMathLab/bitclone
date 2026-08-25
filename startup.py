@@ -180,7 +180,7 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Start Skyscraper's Bitcoin Core, refresh RPC auth, and verify BitClone connectivity.",
     )
-    parser.add_argument("--ssh-host", default="Skyscraper")
+    parser.add_argument("--ssh-host", default="192.168.0.108")
     parser.add_argument("--ssh-user", default="greg")
     parser.add_argument("--remote-bin-dir", default="/mnt/bitcoin/Core/bitcoin-25.0/bin")
     parser.add_argument("--remote-data-dir", default="/mnt/bitcoin/Bitcoin")
