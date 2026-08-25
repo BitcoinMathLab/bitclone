@@ -11,5 +11,6 @@ from src.script.scriptsigs import *
 from src.script.sig_ops import *
 from src.script.spend_trace import *
 from src.script.spend_classification import *
+from src.script.standard_templates import *
 from src.script.stack import *
 from src.script.trace import *
