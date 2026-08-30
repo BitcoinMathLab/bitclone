@@ -12,7 +12,7 @@ from src.cryptography import ecdsa, verify_ecdsa, schnorr_verify, schnorr_sig, h
 from src.data import encode_der_signature, decode_der_signature, PubKey
 from src.tx import Tx, TxOut, UTXO
 
-__all__ = ["SigHash", "get_legacy_sighash_preimage", "get_legacy_sighash", "get_segwit_sighash", "get_taproot_sighash", "get_schnorr_sig",
+__all__ = ["SigHash", "get_legacy_sighash_preimage", "get_legacy_sighash", "get_segwit_sighash_preimage", "get_segwit_sighash", "get_taproot_sighash", "get_schnorr_sig",
            "verify_schnorr_sig", "get_ecdsa_sig", "verify_ecdsa_sig"]
 
 
@@ -104,56 +104,71 @@ def get_legacy_sighash(tx: Tx, input_index: int, scriptpubkey: bytes, sighash_nu
     return hash256(get_legacy_sighash_preimage(tx, input_index, scriptpubkey, sighash_num))
 
 
-def get_segwit_sighash(tx: Tx, input_index: int, amount: int, scriptpubkey: bytes, sighash_num:
-int = 1):
+def get_segwit_sighash_preimage(
+        tx: Tx,
+        input_index: int,
+        amount: int,
+        scriptpubkey: bytes,
+        sighash_num: int = 1,
+) -> bytes:
+    """Return the exact BIP143 witness-v0 signature preimage.
+
+    ``scriptpubkey`` is the serialized ``scriptCode`` (including its CompactSize
+    length), matching the interpreter context used by P2WPKH and P2WSH.
     """
-    We return the sighash for a segwit Transaction
-    """
-    # 1. Get copy of tx
-    tx_copy = Tx.from_bytes(tx.to_bytes())
+    if not isinstance(tx, Tx):
+        raise SignatureError("SegWit signature hash requires a transaction")
+    if not isinstance(input_index, int) or not 0 <= input_index < len(tx.inputs):
+        raise SignatureError("SegWit signature hash input index is out of range")
+    if not isinstance(amount, int) or not 0 <= amount <= 0xFFFFFFFFFFFFFFFF:
+        raise SignatureError("SegWit signature hash amount is out of range")
+    if not isinstance(scriptpubkey, bytes):
+        raise SignatureError("SegWit signature hash scriptCode must be bytes")
+    if not isinstance(sighash_num, int) or not 0 <= sighash_num <= 0xFF:
+        raise SignatureError("SegWit signature hash type must fit in one byte")
 
-    # 2. Construct the preimage and preimage hash
-    # 2-1. version
-    serialized_version = tx_copy.version.to_bytes(TX.VERSION, "little")
-
-    # 2-2. hash256(serialized txid+vout for all the inputs in the tx)
-    serialized_inputs = b''.join([txin.outpoint for txin in tx_copy.inputs])
-    hashed_inputs = hash256(serialized_inputs)
-
-    # 2-3. Serialize and hash the sequence of each input
-    serialized_sequences = b''.join([txin.sequence.to_bytes(TX.SEQUENCE, "little") for txin in tx_copy.inputs])
-    hashed_sequences = hash256(serialized_sequences)
-
-    # 2-4. Serialize the outpoint for the input we're signing
-    my_input = tx_copy.inputs[input_index]
-    my_input_outpoint = my_input.outpoint
-
-    # 2-5. Create script for the input we're signing
-    scriptcode = scriptpubkey  # Either P2WPKH or P2WSH. The latter is a witness script, the former is P2PKH
-
-    # 2-6. Amount
-    serialized_amount = amount.to_bytes(TX.AMOUNT, "little")
-
-    # 2-7. My Sequence
-    my_sequence = my_input.sequence.to_bytes(TX.SEQUENCE, "little")
-
-    # 2-8. Serialized and hash all outputs
-    serialized_outputs = b''.join([txout.to_bytes() for txout in tx_copy.outputs])
-    hashed_outputs = hash256(serialized_outputs)
-
-    # 2-9. Locktime
-    serialized_locktime = tx_copy.locktime.to_bytes(TX.LOCKTIME, "little")
-
-    # 2.10 Construct pre-image
-    preimage = (
-            serialized_version + hashed_inputs + hashed_sequences + my_input_outpoint + scriptcode +
-            serialized_amount + my_sequence + hashed_outputs + serialized_locktime
+    zero_hash = bytes(32)
+    base_type = sighash_num & 0x1F
+    anyone_can_pay = bool(sighash_num & 0x80)
+    hash_prevouts = zero_hash if anyone_can_pay else hash256(
+        b"".join(tx_input.outpoint for tx_input in tx.inputs)
     )
+    hash_sequence = zero_hash if anyone_can_pay or base_type in (SigHash.NONE, SigHash.SINGLE) else hash256(
+        b"".join(tx_input.sequence.to_bytes(TX.SEQUENCE, "little") for tx_input in tx.inputs)
+    )
+    if base_type not in (SigHash.NONE, SigHash.SINGLE):
+        hash_outputs = hash256(b"".join(output.to_bytes() for output in tx.outputs))
+    elif base_type == SigHash.SINGLE and input_index < len(tx.outputs):
+        hash_outputs = hash256(tx.outputs[input_index].to_bytes())
+    else:
+        hash_outputs = zero_hash
 
-    # 2-11. Add signature hash type
-    preimage_sighash = preimage + SigHash(sighash_num).for_hashing()
+    selected_input = tx.inputs[input_index]
+    return b"".join((
+        tx.version.to_bytes(TX.VERSION, "little"),
+        hash_prevouts,
+        hash_sequence,
+        selected_input.outpoint,
+        scriptpubkey,
+        amount.to_bytes(TX.AMOUNT, "little"),
+        selected_input.sequence.to_bytes(TX.SEQUENCE, "little"),
+        hash_outputs,
+        tx.locktime.to_bytes(TX.LOCKTIME, "little"),
+        sighash_num.to_bytes(4, "little"),
+    ))
 
-    return hash256(preimage_sighash)
+
+def get_segwit_sighash(
+        tx: Tx,
+        input_index: int,
+        amount: int,
+        scriptpubkey: bytes,
+        sighash_num: int = 1,
+):
+    """Return the double-SHA-256 BIP143 digest for a witness-v0 input."""
+    return hash256(get_segwit_sighash_preimage(
+        tx, input_index, amount, scriptpubkey, sighash_num
+    ))
 
 
 def get_taproot_sighash(tx: Tx,
