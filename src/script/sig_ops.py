@@ -10,9 +10,9 @@ from enum import IntEnum
 from src.core import SignatureError, TX, TAPROOT, write_compact_size
 from src.cryptography import ecdsa, verify_ecdsa, schnorr_verify, schnorr_sig, hash256, sha256, tapsighash_hash
 from src.data import encode_der_signature, decode_der_signature, PubKey
-from src.tx import Tx, UTXO
+from src.tx import Tx, TxOut, UTXO
 
-__all__ = ["SigHash", "get_legacy_sighash", "get_segwit_sighash", "get_taproot_sighash", "get_schnorr_sig",
+__all__ = ["SigHash", "get_legacy_sighash_preimage", "get_legacy_sighash", "get_segwit_sighash", "get_taproot_sighash", "get_schnorr_sig",
            "verify_schnorr_sig", "get_ecdsa_sig", "verify_ecdsa_sig"]
 
 
@@ -38,6 +38,50 @@ class SigHash(IntEnum):
         return self.value.to_bytes(4, "little")
 
 
+def get_legacy_sighash_preimage(tx: Tx, input_index: int, scriptpubkey: bytes, sighash_num: int = 1) -> bytes:
+    """Return the exact legacy transaction bytes committed to by a signature.
+
+    This implements the transaction transformations used by Bitcoin's original
+    signature-hash algorithm, including ``NONE``, ``SINGLE``, and
+    ``ANYONECANPAY``.  ``SIGHASH_SINGLE`` without a corresponding output has no
+    preimage because consensus returns the historical ``uint256::ONE`` value
+    directly; callers should use :func:`get_legacy_sighash` for that case.
+    """
+    if any(t is None for t in [tx, input_index, sighash_num, scriptpubkey]):
+        raise SignatureError("Insufficient context items for legacy signature hash")
+    if not isinstance(input_index, int) or not 0 <= input_index < len(tx.inputs):
+        raise SignatureError("Legacy signature hash input index is out of range")
+    if not isinstance(sighash_num, int) or not 0 <= sighash_num <= 0xFF:
+        raise SignatureError("Legacy signature hash type must fit in one byte")
+
+    base_type = sighash_num & 0x1F
+    if base_type == SigHash.SINGLE and input_index >= len(tx.outputs):
+        raise SignatureError("SIGHASH_SINGLE has no corresponding output preimage")
+
+    tx_copy = tx.clone()
+    for tx_input in tx_copy.inputs:
+        tx_input.scriptsig = bytes()
+    tx_copy.inputs[input_index].scriptsig = scriptpubkey
+
+    if base_type == SigHash.NONE:
+        tx_copy.outputs = []
+        for index, tx_input in enumerate(tx_copy.inputs):
+            if index != input_index:
+                tx_input.sequence = 0
+    elif base_type == SigHash.SINGLE:
+        tx_copy.outputs = [TxOut(0xFFFFFFFFFFFFFFFF, b"") for _ in range(input_index)] + [
+            tx_copy.outputs[input_index]
+        ]
+        for index, tx_input in enumerate(tx_copy.inputs):
+            if index != input_index:
+                tx_input.sequence = 0
+
+    if sighash_num & 0x80:
+        tx_copy.inputs = [tx_copy.inputs[input_index]]
+
+    return tx_copy._get_txid_preimage() + sighash_num.to_bytes(4, "little")
+
+
 def get_legacy_sighash(tx: Tx, input_index: int, scriptpubkey: bytes, sighash_num: int = 1):
     """
     Computes legacy message_hash for signing:
@@ -49,26 +93,15 @@ def get_legacy_sighash(tx: Tx, input_index: int, scriptpubkey: bytes, sighash_nu
         script_code == scriptpubkey
 
     """
-    # Verify
-    if any(t is None for t in [tx, input_index, sighash_num, scriptpubkey]):
-        raise SignatureError("Insufficient context items for legacy signature hash")
-
-    # Get tx_copy
-    tx_copy = tx.clone()
-
-    # 1, Remove all existing scriptsigs
-    for i in tx_copy.inputs:
-        i.scriptsig = bytes()
-
-    # 2. Put scriptpubkey in the scriptsig for the input
-    tx_copy.inputs[input_index].scriptsig = scriptpubkey
-
-    # 3. Append the sighash byte at the end of the serialized tx data
-    sighash = SigHash(sighash_num)
-    data = tx_copy._get_txid_preimage() + sighash.for_hashing()
-
-    # 4. Return sighash
-    return hash256(data)
+    if (
+        isinstance(input_index, int)
+        and isinstance(sighash_num, int)
+        and (sighash_num & 0x1F) == SigHash.SINGLE
+        and 0 <= input_index < len(tx.inputs)
+        and input_index >= len(tx.outputs)
+    ):
+        return b"\x01" + b"\x00" * 31
+    return hash256(get_legacy_sighash_preimage(tx, input_index, scriptpubkey, sighash_num))
 
 
 def get_segwit_sighash(tx: Tx, input_index: int, amount: int, scriptpubkey: bytes, sighash_num:
