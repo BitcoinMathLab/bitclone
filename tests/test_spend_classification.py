@@ -8,6 +8,7 @@ from src.script import ScriptType, SpendType, classify_spend
     [
         (b"\x21" + b"\x02" + b"\x11" * 32 + b"\xac", SpendType.P2PK),
         (b"\x76\xa9\x14" + b"\x11" * 20 + b"\x88\xac", SpendType.P2PKH),
+        (b"\x51\x21" + b"\x02" + b"\x11" * 32 + b"\x51\xae", SpendType.P2MS),
         (b"\xa9\x14" + b"\x11" * 20 + b"\x87", SpendType.P2SH),
         (b"\x00\x14" + b"\x11" * 20, SpendType.P2WPKH),
         (b"\x00\x20" + b"\x11" * 32, SpendType.P2WSH),

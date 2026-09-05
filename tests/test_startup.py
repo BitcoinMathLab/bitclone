@@ -102,11 +102,81 @@ def test_tunnel_is_added_only_when_local_port_is_closed(tmp_path):
     assert command[-3:] == ["-L", config.forwarding_spec, config.ssh_target]
 
 
+def test_start_product_services_starts_backend_then_frontend(tmp_path):
+    config = startup.StartupConfig(
+        state_dir=tmp_path,
+        backend_dir=tmp_path / "backend",
+        frontend_dir=tmp_path / "frontend",
+    )
+    started = []
+
+    with patch(
+        "startup._start_detached_service",
+        side_effect=lambda **kwargs: started.append(kwargs) or {"status": "started"},
+    ):
+        result = startup.start_product_services(config)
+
+    assert result == {
+        "backend": {"status": "started"},
+        "frontend": {"status": "started"},
+    }
+    assert [service["name"] for service in started] == ["backend", "frontend"]
+    assert started[0]["command"][:2] == [
+        str(config.backend_dir / ".venv" / "bin" / "uvicorn"),
+        "bml_backend.app:app",
+    ]
+    assert started[0]["environment"]["BML_CORE_RPC_URL"] == config.rpc_url
+    assert started[0]["environment"]["BML_CORE_RPC_COOKIE"] == str(config.local_cookie)
+    assert started[1]["command"][:2] == ["npm", "start"]
+
+
+def test_detached_service_reuses_an_open_port(tmp_path):
+    with patch("startup._port_is_open", return_value=True):
+        result = startup._start_detached_service(
+            name="frontend",
+            command=["npm", "start"],
+            working_directory=tmp_path,
+            host="127.0.0.1",
+            port=4200,
+            state_dir=tmp_path,
+            timeout=1,
+        )
+
+    assert result == {"status": "already running", "url": "http://127.0.0.1:4200"}
+
+
 def test_main_reports_diagnostic_json(tmp_path, capsys):
     info = {"chain": "main", "blocks": 959327, "initialblockdownload": False}
-    with patch("startup.run_startup", return_value=info):
+    services = {
+        "backend": {"status": "started", "url": "http://127.0.0.1:8000"},
+        "frontend": {"status": "started", "url": "http://127.0.0.1:4200"},
+    }
+    with (
+        patch("startup.run_startup", return_value=info),
+        patch("startup.start_product_services", return_value=services),
+    ):
         assert startup.main(["--state-dir", str(tmp_path)]) == 0
 
     output = capsys.readouterr().out
     assert '"blocks": 959327' in output
     assert '"initialblockdownload": false' in output
+    assert '"http://127.0.0.1:4200"' in output
+
+
+def test_main_can_prepare_infrastructure_without_starting_apps(tmp_path):
+    with (
+        patch("startup.run_startup", return_value={"chain": "main"}),
+        patch("startup.start_product_services") as start_services,
+    ):
+        assert (
+            startup.main(
+                [
+                    "--state-dir",
+                    str(tmp_path),
+                    "--infrastructure-only",
+                ]
+            )
+            == 0
+        )
+
+    start_services.assert_not_called()

@@ -22,9 +22,17 @@ From the repository root, run:
 ```
 
 The startup helper creates or reuses a persistent SSH connection, starts Bitcoin Core on Skyscraper if necessary,
-waits for its RPC service, atomically refreshes `~/.bitclone/skyscraper.cookie`, opens the local RPC tunnel on port
-18332, and prints the result of `getblockchaininfo`. It may prompt for Greg's SSH password when no SSH key or existing
-control connection is available. The helper does not store that password.
+waits for its RPC service, atomically refreshes `~/.bitclone/skyscraper.cookie`, and opens the local RPC tunnel on port
+18332. It then starts the sibling backend on `http://127.0.0.1:8000` and frontend on
+`http://127.0.0.1:4200`. The application processes run in the background; their PID and log files are stored in
+`~/.bitclone`. Services already listening on those ports are left running. The helper may prompt for Greg's SSH
+password when no SSH key or existing control connection is available, and does not store that password.
+
+To prepare only Bitcoin Core and the RPC tunnel, retaining the helper's earlier behavior, run:
+
+```bash
+./.venv/bin/python startup.py --infrastructure-only
+```
 
 The SSH connection and tunnel remain available after the helper exits. Close them at the end of a development session
 with:

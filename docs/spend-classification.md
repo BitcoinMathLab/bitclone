@@ -5,7 +5,7 @@ previous output's locking script and, when available, the spending input's scrip
 
 The result separates the output family from the observed spend path:
 
-- P2PK, P2PKH, P2SH, P2WPKH, and P2WSH outputs;
+- P2PK, P2PKH, bare P2MS, P2SH, P2WPKH, and P2WSH outputs;
 - native and P2SH-nested version-zero witness programs;
 - Taproot key-path and script-path witnesses, including the optional annex; and
 - `UNKNOWN` for unsupported, truncated, or structurally ambiguous data.
@@ -41,7 +41,8 @@ Run the focused and complete suites:
 
 Then validate representative fixtures through a Python shell:
 
-1. Classify standard P2PK, P2PKH, P2SH, P2WPKH, and P2WSH locking scripts. Expect the matching spend type.
+1. Classify standard P2PK, P2PKH, bare P2MS, P2SH, P2WPKH, and P2WSH locking scripts. Expect the matching spend
+   type.
 2. Supply P2SH with one directly pushed v0 20-byte or 32-byte witness program. Expect `P2SH-P2WPKH` or
    `P2SH-P2WSH`, the redeem script, and `is_nested=True`.
 3. Add another scriptSig stack item before the witness-program push. Expect plain `P2SH`; malformed scriptSigs must

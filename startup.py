@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare BitClone's remote Bitcoin Core development connection."""
+"""Prepare the local Bitcoin Math Lab development environment."""
 from __future__ import annotations
 
 import argparse
@@ -30,6 +30,11 @@ class StartupConfig:
     state_dir: Path = Path.home() / ".bitclone"
     rpc_timeout: float = 10.0
     core_start_timeout: int = 120
+    service_start_timeout: float = 60.0
+    backend_dir: Path = Path(__file__).resolve().parent.parent / "backend"
+    frontend_dir: Path = Path(__file__).resolve().parent.parent / "frontend"
+    backend_port: int = 8000
+    frontend_port: int = 4200
 
     @property
     def ssh_target(self) -> str:
@@ -176,9 +181,113 @@ def run_startup(
     return diagnostic(config)
 
 
+def _start_detached_service(
+    *,
+    name: str,
+    command: list[str],
+    working_directory: Path,
+    host: str,
+    port: int,
+    state_dir: Path,
+    timeout: float,
+    environment: dict[str, str] | None = None,
+) -> dict[str, object]:
+    """Start a development service in the background and wait for its port."""
+    url = f"http://{host}:{port}"
+    if _port_is_open(host, port):
+        return {"status": "already running", "url": url}
+    if not working_directory.is_dir():
+        raise FileNotFoundError(f"{name} directory not found: {working_directory}")
+
+    state_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    log_path = state_dir / f"{name}.log"
+    pid_path = state_dir / f"{name}.pid"
+    with log_path.open("ab") as log:
+        process = subprocess.Popen(
+            command,
+            cwd=working_directory,
+            env=environment,
+            stdin=subprocess.DEVNULL,
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+    pid_path.write_text(f"{process.pid}\n", encoding="utf-8")
+
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if _port_is_open(host, port):
+            return {
+                "status": "started",
+                "url": url,
+                "pid": process.pid,
+                "log": str(log_path),
+            }
+        return_code = process.poll()
+        if return_code is not None:
+            raise RuntimeError(
+                f"{name} exited with status {return_code}; see {log_path}"
+            )
+        time.sleep(0.2)
+    raise TimeoutError(
+        f"{name} did not open {url} within {timeout:g} seconds; see {log_path}"
+    )
+
+
+def start_product_services(config: StartupConfig) -> dict[str, dict[str, object]]:
+    """Start the backend and frontend development servers when needed."""
+    backend_executable = config.backend_dir / ".venv" / "bin" / "uvicorn"
+    backend_environment = os.environ.copy()
+    backend_environment.update(
+        {
+            "BML_CORE_RPC_URL": config.rpc_url,
+            "BML_CORE_RPC_COOKIE": str(config.local_cookie),
+        }
+    )
+    backend = _start_detached_service(
+        name="backend",
+        command=[
+            str(backend_executable),
+            "bml_backend.app:app",
+            "--reload",
+            "--host",
+            config.local_rpc_host,
+            "--port",
+            str(config.backend_port),
+        ],
+        working_directory=config.backend_dir,
+        host=config.local_rpc_host,
+        port=config.backend_port,
+        state_dir=config.state_dir,
+        timeout=config.service_start_timeout,
+        environment=backend_environment,
+    )
+    frontend = _start_detached_service(
+        name="frontend",
+        command=[
+            "npm",
+            "start",
+            "--",
+            "--host",
+            config.local_rpc_host,
+            "--port",
+            str(config.frontend_port),
+        ],
+        working_directory=config.frontend_dir,
+        host=config.local_rpc_host,
+        port=config.frontend_port,
+        state_dir=config.state_dir,
+        timeout=config.service_start_timeout,
+    )
+    return {"backend": backend, "frontend": frontend}
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Start Skyscraper's Bitcoin Core, refresh RPC auth, and verify BitClone connectivity.",
+        description=(
+            "Prepare Bitcoin Core connectivity and start the Bitcoin Math Lab "
+            "development applications."
+        ),
     )
     parser.add_argument("--ssh-host", default="192.168.0.108")
     parser.add_argument("--ssh-user", default="greg")
@@ -188,6 +297,24 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--state-dir", type=Path, default=Path.home() / ".bitclone")
     parser.add_argument("--rpc-timeout", type=float, default=10.0)
     parser.add_argument("--core-start-timeout", type=int, default=120)
+    parser.add_argument("--service-start-timeout", type=float, default=60.0)
+    parser.add_argument(
+        "--backend-dir",
+        type=Path,
+        default=Path(__file__).resolve().parent.parent / "backend",
+    )
+    parser.add_argument(
+        "--frontend-dir",
+        type=Path,
+        default=Path(__file__).resolve().parent.parent / "frontend",
+    )
+    parser.add_argument("--backend-port", type=int, default=8000)
+    parser.add_argument("--frontend-port", type=int, default=4200)
+    parser.add_argument(
+        "--infrastructure-only",
+        action="store_true",
+        help="prepare Bitcoin Core and its RPC tunnel without starting the product applications",
+    )
     return parser
 
 
@@ -202,13 +329,31 @@ def main(argv: Sequence[str] | None = None) -> int:
         state_dir=args.state_dir.expanduser(),
         rpc_timeout=args.rpc_timeout,
         core_start_timeout=args.core_start_timeout,
+        service_start_timeout=args.service_start_timeout,
+        backend_dir=args.backend_dir.expanduser().resolve(),
+        frontend_dir=args.frontend_dir.expanduser().resolve(),
+        backend_port=args.backend_port,
+        frontend_port=args.frontend_port,
     )
     try:
         info = run_startup(config)
-    except (subprocess.CalledProcessError, BitcoinCoreRPCError, OSError, TimeoutError) as error:
+        services = {} if args.infrastructure_only else start_product_services(config)
+    except (
+        subprocess.CalledProcessError,
+        BitcoinCoreRPCError,
+        OSError,
+        RuntimeError,
+        TimeoutError,
+    ) as error:
         print(f"BitClone startup failed: {error}", file=sys.stderr)
         return 1
-    print(json.dumps(info, indent=2, sort_keys=True))
+    print(
+        json.dumps(
+            {"bitcoin_core": info, "services": services},
+            indent=2,
+            sort_keys=True,
+        )
+    )
     return 0
 
 

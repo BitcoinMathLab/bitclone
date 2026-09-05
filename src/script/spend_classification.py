@@ -16,6 +16,7 @@ class SpendType(str, Enum):
 
     P2PK = "P2PK"
     P2PKH = "P2PKH"
+    P2MS = "P2MS"
     P2SH = "P2SH"
     P2SH_P2WPKH = "P2SH-P2WPKH"
     P2SH_P2WSH = "P2SH-P2WSH"
@@ -29,6 +30,7 @@ class SpendType(str, Enum):
 _DIRECT_TYPES: dict[ScriptType, SpendType] = {
     ScriptType.P2PK: SpendType.P2PK,
     ScriptType.P2PKH: SpendType.P2PKH,
+    ScriptType.P2MS: SpendType.P2MS,
     ScriptType.P2SH: SpendType.P2SH,
     ScriptType.P2WPKH: SpendType.P2WPKH,
     ScriptType.P2WSH: SpendType.P2WSH,

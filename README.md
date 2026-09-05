@@ -87,9 +87,10 @@ The MVP script visualizer foundation is documented in the immutable
 [execution trace model](docs/execution-trace-model.md) and the opt-in
 [script tracing guide](docs/script-tracing.md).
 
-The transport-neutral Story 9.3 boundary for validating and tracing a complete legacy P2PKH spend is documented in
-the [P2PKH spend tracing guide](docs/p2pkh-spend-tracing.md). HTTP validation and response models remain in the
-separate Bitcoin Math Lab backend.
+Transport-neutral boundaries for validating and tracing complete legacy spends are documented in the
+[P2PKH spend tracing guide](docs/p2pkh-spend-tracing.md) and
+[P2MS spend tracing guide](docs/p2ms-spend-tracing.md). HTTP validation and response models remain in the separate
+Bitcoin Math Lab backend.
 
 Real-transaction analysis can use the stable [`classify_spend`](docs/spend-classification.md) boundary to identify
 standard legacy, SegWit, nested SegWit, and Taproot spend paths without executing the script.

@@ -10,8 +10,8 @@ from src.cryptography import hash160
 from src.data import decode_der_signature
 from src.script.context import ScriptValidationInput, SignatureVersion
 from src.script.script_engine import ScriptEngine
-from src.script.scriptpubkeys import P2PKH_Key, P2WPKH_Key
-from src.script.scriptsigs import P2PKH_Sig
+from src.script.scriptpubkeys import P2MS_Key, P2PKH_Key, P2WPKH_Key
+from src.script.scriptsigs import P2MS_Sig, P2PKH_Sig
 from src.script.sig_ops import (
     get_legacy_sighash,
     get_legacy_sighash_preimage,
@@ -24,9 +24,11 @@ from src.tx import LoadedTx, Tx, UTXO
 
 __all__ = [
     "ECDSASignatureVerificationResult",
+    "P2MSTraceResult",
     "P2PKHTraceResult",
     "P2WPKHTraceResult",
     "trace_p2pkh_spend",
+    "trace_p2ms_spend",
     "trace_p2wpkh_spend",
     "verify_input_ecdsa_signature",
 ]
@@ -92,6 +94,42 @@ class P2WPKHTraceResult:
             raise TypeError("P2WPKH trace must be an ExecutionTrace")
         if self.trace.script != self.script_code:
             raise ValueError("P2WPKH trace script must be the derived scriptCode")
+
+
+@dataclass(frozen=True, slots=True)
+class P2MSTraceResult:
+    """The immutable result of tracing one legacy bare-multisig input."""
+
+    input_index: int
+    unlocking_script: bytes
+    locking_script: bytes
+    required_signatures: int
+    public_keys: tuple[bytes, ...]
+    signatures: tuple[bytes, ...]
+    null_dummy: bytes
+    trace: ExecutionTrace
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.input_index, int) or isinstance(self.input_index, bool):
+            raise TypeError("P2MS trace input index must be an integer")
+        if self.input_index < 0:
+            raise ValueError("P2MS trace input index cannot be negative")
+        if not 1 <= self.required_signatures <= len(self.public_keys) <= 16:
+            raise ValueError("P2MS trace must describe a valid m-of-n threshold")
+        if any(len(public_key) not in {33, 65} for public_key in self.public_keys):
+            raise ValueError("P2MS trace public keys must use SEC encoding")
+        if not self.signatures or any(not signature for signature in self.signatures):
+            raise ValueError("P2MS trace must include its serialized signatures")
+        if self.null_dummy != b"":
+            raise ValueError("P2MS trace must preserve the historical empty dummy item")
+        if not isinstance(self.trace, ExecutionTrace):
+            raise TypeError("P2MS trace must be an ExecutionTrace")
+        if self.trace.script != self.combined_script:
+            raise ValueError("P2MS trace script must combine the unlocking and locking scripts")
+
+    @property
+    def combined_script(self) -> bytes:
+        return self.unlocking_script + self.locking_script
 
 
 @dataclass(frozen=True, slots=True)
@@ -174,6 +212,93 @@ def trace_p2pkh_spend(
         locking_script=locking_script,
         trace=engine.last_trace,
     )
+
+
+def trace_p2ms_spend(
+        tx: Tx,
+        input_index: int,
+        spent_outputs: Iterable[UTXO],
+        *,
+        flags: ScriptVerifyFlag = DEFAULT_TRACE_FLAGS,
+) -> P2MSTraceResult:
+    """Validate and trace one legacy bare P2MS input."""
+    if not isinstance(tx, Tx):
+        raise TypeError("P2MS tracing requires a Tx")
+    if not isinstance(input_index, int) or isinstance(input_index, bool):
+        raise TypeError("P2MS trace input index must be an integer")
+    if input_index < 0 or input_index >= len(tx.inputs):
+        raise ValueError("P2MS trace input index is outside the transaction inputs")
+    if not isinstance(flags, ScriptVerifyFlag):
+        raise TypeError("P2MS trace flags must be ScriptVerifyFlag")
+
+    outputs = tuple(spent_outputs)
+    loaded_tx = LoadedTx(tx, list(outputs))
+    spent_output = outputs[input_index]
+    unlocking_script = tx.inputs[input_index].scriptsig
+    locking_script = spent_output.scriptpubkey
+
+    if not P2MS_Key.matches(locking_script):
+        raise ValueError("Selected spent output is not a legacy bare P2MS script")
+    try:
+        P2MS_Sig.from_bytes(unlocking_script)
+        required_signatures, public_keys = _decode_p2ms_locking_script(locking_script)
+        signatures = _decode_p2ms_unlocking_script(unlocking_script)
+    except (IndexError, ScriptSigError, TypeError, ValueError) as exc:
+        raise ValueError("Selected input does not contain a valid P2MS scriptSig") from exc
+
+    validation = ScriptValidationInput(
+        tx=loaded_tx.tx,
+        input_index=input_index,
+        spent_outputs=tuple(loaded_tx.utxos),
+        flags=flags,
+    )
+    engine = ScriptEngine()
+    engine.validate_script(unlocking_script + locking_script, validation.execution_context(), trace=True)
+    if engine.last_trace is None:  # pragma: no cover - defensive invariant
+        raise RuntimeError("P2MS tracing completed without producing an execution trace")
+
+    return P2MSTraceResult(
+        input_index=input_index,
+        unlocking_script=unlocking_script,
+        locking_script=locking_script,
+        required_signatures=required_signatures,
+        public_keys=public_keys,
+        signatures=signatures,
+        null_dummy=b"",
+        trace=engine.last_trace,
+    )
+
+
+def _decode_p2ms_locking_script(script: bytes) -> tuple[int, tuple[bytes, ...]]:
+    required_signatures = script[0] - 0x50
+    public_key_count = script[-2] - 0x50
+    cursor = 1
+    public_keys = []
+    for _ in range(public_key_count):
+        length = script[cursor]
+        cursor += 1
+        public_key = script[cursor:cursor + length]
+        if length not in {33, 65} or len(public_key) != length:
+            raise ValueError("P2MS locking script contains an invalid public key")
+        public_keys.append(public_key)
+        cursor += length
+    if cursor != len(script) - 2:
+        raise ValueError("P2MS locking script contains trailing data")
+    return required_signatures, tuple(public_keys)
+
+
+def _decode_p2ms_unlocking_script(script: bytes) -> tuple[bytes, ...]:
+    cursor = 1
+    signatures = []
+    while cursor < len(script):
+        length = script[cursor]
+        cursor += 1
+        signature = script[cursor:cursor + length]
+        if not 1 <= length <= 75 or len(signature) != length:
+            raise ValueError("P2MS scriptSig contains an invalid signature push")
+        signatures.append(signature)
+        cursor += length
+    return tuple(signatures)
 
 
 def trace_p2wpkh_spend(
